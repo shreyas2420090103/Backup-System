@@ -8,11 +8,12 @@ const { v4: uuidv4 } = require("uuid");
 const app = express();
 
 // =======================
-// CREATE UPLOADS FOLDER (IMPORTANT FOR RENDER)
+// CREATE UPLOADS FOLDER (IMPORTANT)
 // =======================
 const uploadDir = path.join(__dirname, "uploads");
+
 if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir);
+    fs.mkdirSync(uploadDir, { recursive: true });
 }
 
 // =======================
@@ -37,24 +38,33 @@ app.use(express.static(__dirname));
 app.use(express.json());
 
 // =======================
-// FILE STORAGE
+// FILE STORAGE (FIXED)
 // =======================
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, uploadDir),
-    filename: (req, file, cb) =>
-        cb(null, uuidv4() + "-" + file.originalname)
+    destination: (req, file, cb) => {
+        cb(null, uploadDir); // absolute safe path
+    },
+    filename: (req, file, cb) => {
+        const uniqueName = uuidv4() + "-" + file.originalname;
+        cb(null, uniqueName);
+    }
 });
 
 const upload = multer({ storage });
 
 // =======================
-// UPLOAD WITH VERSIONING
+// UPLOAD ROUTE (FIXED)
 // =======================
 app.post("/upload", upload.single("file"), (req, res) => {
     try {
         if (!req.file) return res.send("No file uploaded");
 
+        console.log("Uploading file:", req.file);
+
         const name = req.file.originalname;
+
+        // 🔥 store relative path (IMPORTANT)
+        const filePath = path.join("uploads", req.file.filename);
 
         const row = db
             .prepare("SELECT MAX(version) as version FROM files WHERE name = ?")
@@ -64,11 +74,11 @@ app.post("/upload", upload.single("file"), (req, res) => {
 
         db.prepare(
             "INSERT INTO files (name, version, path) VALUES (?, ?, ?)"
-        ).run(name, version, req.file.path);
+        ).run(name, version, filePath);
 
         res.redirect("/");
     } catch (err) {
-        console.error(err);
+        console.error("UPLOAD ERROR:", err);
         res.status(500).send("Upload failed");
     }
 });
@@ -106,7 +116,7 @@ app.get("/history/:name", (req, res) => {
 });
 
 // =======================
-// RESTORE
+// RESTORE FILE (FIXED)
 // =======================
 app.get("/restore/:name/:version", (req, res) => {
     try {
@@ -116,15 +126,17 @@ app.get("/restore/:name/:version", (req, res) => {
 
         if (!row) return res.send("File not found");
 
-        res.download(row.path);
+        const fullPath = path.join(__dirname, row.path);
+
+        res.download(fullPath);
     } catch (err) {
-        console.error(err);
+        console.error("RESTORE ERROR:", err);
         res.status(500).send("Restore failed");
     }
 });
 
 // =======================
-// SERVER START (RENDER COMPATIBLE)
+// SERVER START (RENDER FIX)
 // =======================
 const PORT = process.env.PORT || 3000;
 
