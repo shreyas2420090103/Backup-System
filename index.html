@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Smart Backup System</title>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Segoe UI", sans-serif;
+        }
+
+        body {
+            height: 100vh;
+            background: url("https://images.unsplash.com/photo-1519389950473-47ba0277781c")
+                        no-repeat center center/cover;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            width: 480px;
+            padding: 35px;
+            border-radius: 15px;
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(12px);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+            animation: fadeIn 1s ease;
+        }
+
+        h1 {
+            text-align: center;
+            color: white;
+            margin-bottom: 25px;
+            font-size: 34px;
+            font-weight: bold;
+            animation: zoom 0.8s ease;
+        }
+
+        h3 {
+            color: white;
+            margin: 20px 0;
+            font-size: 20px;
+        }
+
+        input {
+            width: 100%;
+            padding: 14px;
+            border-radius: 8px;
+            border: none;
+            margin: 12px 0;
+            font-size: 16px;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            border-radius: 8px;
+            border: none;
+            background: linear-gradient(45deg, #007bff, #00c6ff);
+            color: white;
+            font-size: 17px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        button:hover {
+            transform: scale(1.05);
+            background: linear-gradient(45deg, #0056b3, #0096c7);
+        }
+
+        ul {
+            list-style: none;
+            margin-top: 15px;
+        }
+
+        li {
+            background: rgba(255,255,255,0.25);
+            margin: 10px 0;
+            padding: 14px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: white;
+            font-size: 16px;
+        }
+
+        .restore {
+            background: #28a745;
+            padding: 6px 12px;
+            border-radius: 6px;
+        }
+
+        .restore:hover {
+            background: #1e7e34;
+        }
+
+        hr {
+            margin: 20px 0;
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes zoom {
+            from { transform: scale(0.8); }
+            to { transform: scale(1); }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>📦 Backup System</h1>
+
+    <!-- Upload -->
+    <form action="/upload" method="POST" enctype="multipart/form-data">
+        <input type="file" name="file" required />
+        <button type="submit">Upload File</button>
+    </form>
+
+    <hr>
+
+    <h3>📂 Files</h3>
+    <ul id="list"></ul>
+
+</div>
+
+<script>
+async function loadFiles() {
+    const res = await fetch("/files");
+    const data = await res.json();
+
+    const list = document.getElementById("list");
+    list.innerHTML = "";
+
+    data.forEach(file => {
+        const li = document.createElement("li");
+
+        li.innerHTML = `
+            <span>${file.name}</span>
+            <button onclick="getHistory('${file.name}')">View</button>
+        `;
+
+        list.appendChild(li);
+    });
+}
+
+async function getHistory(name) {
+    const res = await fetch("/history/" + name);
+    const data = await res.json();
+
+    const list = document.getElementById("list");
+    list.innerHTML = "";
+
+    data.forEach(file => {
+        const li = document.createElement("li");
+
+        li.innerHTML = `
+            <span>Version ${file.version}</span>
+            <button class="restore" onclick="restore('${file.name}', ${file.version})">
+                Restore
+            </button>
+        `;
+
+        list.appendChild(li);
+    });
+}
+
+function restore(name, version) {
+    window.location.href = `/restore/${name}/${version}`;
+}
+
+loadFiles();
+</script>
+
+</body>
+</html>
