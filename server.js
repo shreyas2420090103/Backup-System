@@ -1,10 +1,19 @@
 const express = require("express");
 const multer = require("multer");
 const path = require("path");
+const fs = require("fs");
 const Database = require("better-sqlite3");
 const { v4: uuidv4 } = require("uuid");
 
 const app = express();
+
+// =======================
+// CREATE UPLOADS FOLDER (IMPORTANT FOR RENDER)
+// =======================
+const uploadDir = path.join(__dirname, "uploads");
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir);
+}
 
 // =======================
 // DATABASE SETUP
@@ -31,7 +40,7 @@ app.use(express.json());
 // FILE STORAGE
 // =======================
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, "uploads/"),
+    destination: (req, file, cb) => cb(null, uploadDir),
     filename: (req, file, cb) =>
         cb(null, uuidv4() + "-" + file.originalname)
 });
@@ -42,60 +51,80 @@ const upload = multer({ storage });
 // UPLOAD WITH VERSIONING
 // =======================
 app.post("/upload", upload.single("file"), (req, res) => {
-    if (!req.file) return res.send("No file uploaded");
+    try {
+        if (!req.file) return res.send("No file uploaded");
 
-    const name = req.file.originalname;
+        const name = req.file.originalname;
 
-    const row = db
-        .prepare("SELECT MAX(version) as version FROM files WHERE name = ?")
-        .get(name);
+        const row = db
+            .prepare("SELECT MAX(version) as version FROM files WHERE name = ?")
+            .get(name);
 
-    const version = row && row.version ? row.version + 1 : 1;
+        const version = row && row.version ? row.version + 1 : 1;
 
-    db.prepare(
-        "INSERT INTO files (name, version, path) VALUES (?, ?, ?)"
-    ).run(name, version, req.file.path);
+        db.prepare(
+            "INSERT INTO files (name, version, path) VALUES (?, ?, ?)"
+        ).run(name, version, req.file.path);
 
-    res.redirect("/");
+        res.redirect("/");
+    } catch (err) {
+        console.error(err);
+        res.status(500).send("Upload failed");
+    }
 });
 
 // =======================
 // GET ALL FILES
 // =======================
 app.get("/files", (req, res) => {
-    const rows = db
-        .prepare("SELECT DISTINCT name FROM files")
-        .all();
+    try {
+        const rows = db
+            .prepare("SELECT DISTINCT name FROM files")
+            .all();
 
-    res.json(rows);
+        res.json(rows);
+    } catch (err) {
+        console.error(err);
+        res.json([]);
+    }
 });
 
 // =======================
 // GET HISTORY
 // =======================
 app.get("/history/:name", (req, res) => {
-    const rows = db
-        .prepare("SELECT * FROM files WHERE name = ?")
-        .all(req.params.name);
+    try {
+        const rows = db
+            .prepare("SELECT * FROM files WHERE name = ?")
+            .all(req.params.name);
 
-    res.json(rows);
+        res.json(rows);
+    } catch (err) {
+        console.error(err);
+        res.json([]);
+    }
 });
 
 // =======================
 // RESTORE
 // =======================
 app.get("/restore/:name/:version", (req, res) => {
-    const row = db
-        .prepare("SELECT * FROM files WHERE name = ? AND version = ?")
-        .get(req.params.name, req.params.version);
+    try {
+        const row = db
+            .prepare("SELECT * FROM files WHERE name = ? AND version = ?")
+            .get(req.params.name, req.params.version);
 
-    if (!row) return res.send("File not found");
+        if (!row) return res.send("File not found");
 
-    res.download(row.path);
+        res.download(row.path);
+    } catch (err) {
+        console.error(err);
+        res.status(500).send("Restore failed");
+    }
 });
 
 // =======================
-// SERVER START (IMPORTANT FOR RENDER)
+// SERVER START (RENDER COMPATIBLE)
 // =======================
 const PORT = process.env.PORT || 3000;
 
