@@ -59,30 +59,37 @@ app.post("/upload", upload.single("file"), (req, res) => {
     try {
         if (!req.file) return res.send("No file uploaded");
 
-        console.log("Uploading file:", req.file);
-
         const name = req.file.originalname;
-
-        // 🔥 store relative path (IMPORTANT)
-        const filePath = path.join("uploads", req.file.filename);
 
         const row = db
             .prepare("SELECT MAX(version) as version FROM files WHERE name = ?")
             .get(name);
 
-        const version = row && row.version ? row.version + 1 : 1;
+        let message = "";
+        let version;
+
+        if (row && row.version) {
+            version = row.version + 1;
+            message = "duplicate";  // 🔥 key change
+        } else {
+            version = 1;
+            message = "new";
+        }
+
+        const filePath = path.join("uploads", req.file.filename);
 
         db.prepare(
             "INSERT INTO files (name, version, path) VALUES (?, ?, ?)"
         ).run(name, version, filePath);
 
-        res.redirect("/");
+        // 🔥 redirect with message
+        res.redirect(`/?status=${message}&file=${name}&version=${version}`);
+
     } catch (err) {
         console.error("UPLOAD ERROR:", err);
         res.status(500).send("Upload failed");
     }
 });
-
 // =======================
 // GET ALL FILES
 // =======================
